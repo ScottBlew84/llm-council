@@ -86,30 +86,58 @@ export const api = {
     );
 
     if (!response.ok) {
-      throw new Error('Failed to send message');
+      const errorText = await response.text();
+      console.error('API error response:', errorText);
+      throw new Error(`Failed to send message: ${response.status} ${response.statusText}`);
     }
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
+    let buffer = '';
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
 
-      const chunk = decoder.decode(value);
-      const lines = chunk.split('\n');
+        const chunk = decoder.decode(value, { stream: true });
+        buffer += chunk;
+        const lines = buffer.split('\n');
 
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const data = line.slice(6);
-          try {
-            const event = JSON.parse(data);
-            onEvent(event.type, event);
-          } catch (e) {
-            console.error('Failed to parse SSE event:', e);
+        // Keep the last incomplete line in the buffer
+        buffer = lines[lines.length - 1];
+
+        for (let i = 0; i < lines.length - 1; i++) {
+          const line = lines[i];
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            try {
+              if (data.trim()) {
+                const event = JSON.parse(data);
+                onEvent(event.type, event);
+              }
+            } catch (e) {
+              console.error('Failed to parse SSE event:', e, 'Raw data:', data);
+            }
           }
         }
       }
+
+      // Process any remaining buffer
+      if (buffer.startsWith('data: ')) {
+        const data = buffer.slice(6);
+        try {
+          if (data.trim()) {
+            const event = JSON.parse(data);
+            onEvent(event.type, event);
+          }
+        } catch (e) {
+          console.error('Failed to parse final SSE event:', e, 'Raw data:', data);
+        }
+      }
+    } catch (e) {
+      console.error('Stream reading error:', e);
+      throw e;
     }
   },
 
