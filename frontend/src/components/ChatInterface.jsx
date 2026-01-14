@@ -8,6 +8,7 @@ import './ChatInterface.css';
 export default function ChatInterface({
   conversation,
   onSendMessage,
+  onStopGeneration,
   isLoading,
 }) {
   const [input, setInput] = useState('');
@@ -72,20 +73,29 @@ export default function ChatInterface({
                 <div className="assistant-message">
                   <div className="message-label">LLM Council</div>
 
-                  {/* Stage 1 */}
+                  {/* Stage 1: Final Council Answer (was Stage 3) */}
+                  {msg.loading?.stage3 && (
+                    <div className="stage-loading">
+                      <div className="spinner"></div>
+                      <span>Running Stage 1: Synthesizing final answer...</span>
+                    </div>
+                  )}
+                  {msg.stage3 && <Stage3 finalResponse={msg.stage3} />}
+
+                  {/* Stage 2: Individual Responses (was Stage 1) */}
                   {msg.loading?.stage1 && (
                     <div className="stage-loading">
                       <div className="spinner"></div>
-                      <span>Running Stage 1: Collecting individual responses...</span>
+                      <span>Running Stage 2: Collecting individual responses...</span>
                     </div>
                   )}
                   {msg.stage1 && <Stage1 responses={msg.stage1} />}
 
-                  {/* Stage 2 */}
+                  {/* Stage 3: Peer Rankings (was Stage 2) */}
                   {msg.loading?.stage2 && (
                     <div className="stage-loading">
                       <div className="spinner"></div>
-                      <span>Running Stage 2: Peer rankings...</span>
+                      <span>Running Stage 3: Peer rankings...</span>
                     </div>
                   )}
                   {msg.stage2 && (
@@ -95,15 +105,6 @@ export default function ChatInterface({
                       aggregateRankings={msg.metadata?.aggregate_rankings}
                     />
                   )}
-
-                  {/* Stage 3 */}
-                  {msg.loading?.stage3 && (
-                    <div className="stage-loading">
-                      <div className="spinner"></div>
-                      <span>Running Stage 3: Final synthesis...</span>
-                    </div>
-                  )}
-                  {msg.stage3 && <Stage3 finalResponse={msg.stage3} />}
                 </div>
               )}
             </div>
@@ -114,6 +115,13 @@ export default function ChatInterface({
           <div className="loading-indicator">
             <div className="spinner"></div>
             <span>Consulting the council...</span>
+            <button 
+              type="button" 
+              className="stop-button"
+              onClick={onStopGeneration}
+            >
+              Stop
+            </button>
           </div>
         )}
 

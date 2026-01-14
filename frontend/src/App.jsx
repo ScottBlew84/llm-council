@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Sidebar from './components/Sidebar';
 import ChatInterface from './components/ChatInterface';
 import { api } from './api';
@@ -9,6 +9,7 @@ function App() {
   const [currentConversationId, setCurrentConversationId] = useState(null);
   const [currentConversation, setCurrentConversation] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const abortControllerRef = useRef(null);
 
   // Load conversations on mount
   useEffect(() => {
@@ -76,6 +77,10 @@ function App() {
 
   const handleSendMessage = async (content) => {
     if (!currentConversationId) return;
+
+    // Create abort controller for this request
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
 
     setIsLoading(true);
     try {
@@ -186,14 +191,28 @@ function App() {
           default:
             console.log('Unknown event type:', eventType);
         }
-      });
+      }, abortController.signal);
     } catch (error) {
-      console.error('Failed to send message:', error);
-      // Remove optimistic messages on error
-      setCurrentConversation((prev) => ({
-        ...prev,
-        messages: prev.messages.slice(0, -2),
-      }));
+      if (error.name === 'AbortError') {
+        console.log('Request was cancelled');
+        // Keep whatever partial results we have, just stop loading
+      } else {
+        console.error('Failed to send message:', error);
+        // Remove optimistic messages on error
+        setCurrentConversation((prev) => ({
+          ...prev,
+          messages: prev.messages.slice(0, -2),
+        }));
+      }
+      setIsLoading(false);
+    } finally {
+      abortControllerRef.current = null;
+    }
+  };
+
+  const handleStopGeneration = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
       setIsLoading(false);
     }
   };
@@ -210,6 +229,7 @@ function App() {
       <ChatInterface
         conversation={currentConversation}
         onSendMessage={handleSendMessage}
+        onStopGeneration={handleStopGeneration}
         isLoading={isLoading}
       />
     </div>
